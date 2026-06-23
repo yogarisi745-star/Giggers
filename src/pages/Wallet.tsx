@@ -52,6 +52,159 @@ const TransactionIcon = ({ type }: { type: TransactionType }) => {
   );
 };
 
+const WithdrawModal = ({
+  isOpen,
+  onClose,
+  onSuccess,
+  availableBalance,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+  availableBalance: number;
+}) => {
+  const { user } = useAuth();
+  const [amount, setAmount] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const presetAmounts = [500, 1000, 2000, 5000];
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+
+    const numAmount = parseFloat(amount);
+    if (!numAmount || numAmount <= 0) {
+      setError('Please enter a valid amount');
+      return;
+    }
+
+    if (numAmount > availableBalance) {
+      setError('Insufficient balance');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const { error: insertError } = await supabase.from('wallet_transactions').insert({
+        user_id: user.id,
+        type: 'withdrawal',
+        amount: -numAmount,
+        description: `Withdrawal to UPI / Bank`,
+        status: 'completed',
+      });
+
+      if (insertError) throw insertError;
+
+      setAmount('');
+      onSuccess();
+      onClose();
+    } catch (err) {
+      setError('Failed to withdraw. Please try again.');
+      console.error('Withdrawal error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 shadow-2xl">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-error-100 flex items-center justify-center">
+              <ArrowUpRight className="w-5 h-5 text-error-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Withdraw Funds</h2>
+              <p className="text-sm text-gray-500">Transfer to bank account</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="bg-gray-50 rounded-xl p-3 mb-4">
+          <p className="text-sm text-gray-500">Available Balance</p>
+          <p className="text-xl font-bold text-gray-900 flex items-center">
+            <IndianRupee className="w-5 h-5 mr-1 text-gray-400" />
+            {availableBalance.toLocaleString('en-IN')}
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Amount (INR)</label>
+            <div className="relative">
+              <IndianRupee className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="number"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="Enter amount"
+                min="1"
+                max={availableBalance}
+                className="w-full pl-11 pr-4 py-3 bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-lg font-semibold"
+                autoFocus
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-4 gap-2 mb-6">
+            {presetAmounts.map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                onClick={() => setAmount(preset.toString())}
+                disabled={preset > availableBalance}
+                className={`py-2 rounded-lg text-sm font-medium border transition-colors disabled:opacity-40 ${
+                  amount === preset.toString()
+                    ? 'bg-primary-50 border-primary-300 text-primary-700'
+                    : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                ₹{preset}
+              </button>
+            ))}
+          </div>
+
+          {error && (
+            <div className="mb-4 p-3 bg-error-50 border border-error-200 rounded-xl text-sm text-error-700">
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading || !amount}
+            className="w-full py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Processing...
+              </>
+            ) : (
+              <>Withdraw Funds</>
+            )}
+          </button>
+
+          <p className="text-xs text-gray-400 text-center mt-3">
+            Simulated withdrawal — no real money is transferred
+          </p>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 const AddFundsModal = ({
   isOpen,
   onClose,
@@ -195,6 +348,7 @@ const Wallet = () => {
   const [availableBalance, setAvailableBalance] = useState(0);
   const [escrowBalance, setEscrowBalance] = useState(0);
   const [showAddFunds, setShowAddFunds] = useState(false);
+  const [showWithdraw, setShowWithdraw] = useState(false);
 
   useEffect(() => {
     if (user) loadTransactions();
@@ -303,7 +457,11 @@ const Wallet = () => {
             <ArrowDownLeft className="w-4 h-4" />
             Add Funds
           </button>
-          <button className="flex items-center justify-center gap-2 py-3 bg-white text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors border border-gray-200">
+          <button
+            onClick={() => setShowWithdraw(true)}
+            disabled={availableBalance === 0}
+            className="flex items-center justify-center gap-2 py-3 bg-white text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors border border-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             <ArrowUpRight className="w-4 h-4" />
             Withdraw
           </button>
@@ -374,6 +532,13 @@ const Wallet = () => {
         isOpen={showAddFunds}
         onClose={() => setShowAddFunds(false)}
         onSuccess={loadTransactions}
+      />
+
+      <WithdrawModal
+        isOpen={showWithdraw}
+        onClose={() => setShowWithdraw(false)}
+        onSuccess={loadTransactions}
+        availableBalance={availableBalance}
       />
     </div>
   );
