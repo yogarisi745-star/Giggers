@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Clock, MapPin, MessageSquare, LogOut, Briefcase } from 'lucide-react';
+import { Search, Clock, MapPin, MessageSquare, LogOut, Briefcase, FileText } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import type { Job } from '../lib/types';
@@ -144,8 +144,15 @@ const Home = () => {
             </div>
             <div className="flex items-center gap-2">
               <Link
+                to="/my-postings"
+                className="w-10 h-10 rounded-full bg-success-100 flex items-center justify-center hover:bg-success-200"
+                title="My Posted Jobs"
+              >
+                <FileText className="w-5 h-5 text-success-600" />
+              </Link>
+              <Link
                 to="/chats"
-                className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center"
+                className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center hover:bg-primary-200"
               >
                 <MessageSquare className="w-5 h-5 text-primary-600" />
               </Link>
